@@ -1,12 +1,12 @@
 
 build = \
-    couch_file.beam \
-    zip_server.beam \
-	zip_file.beam \
-    file_test.beam
+    ebin/couch_file.beam \
+    ebin/zip_server.beam \
+	ebin/zip_file.beam \
+    ebin/file_test.beam
 
 all: $(build)
 	./test.es
 
-%.beam: %.erl
-	erlc $<
+ebin/%.beam: src/%.erl
+	erlc -o ebin/ $<
