@@ -47,10 +47,10 @@ work(Mod, Parent, Reps, Fd, Pos, Ratios) ->
     {Type, _} = hd(lists:dropwhile(fun({_, V}) -> V < Sel end, Ratios)),
     case Type of
         read ->
-            foobar = Mod:pread_term(Fd, Pos),
+            <<131,100,0,6,102,111,111,98,97,114>> = Mod:pread(Fd, Pos),
             work(Mod, Parent, Reps-1, Fd, Pos, Ratios);
         write ->
-            Pos2 = Mod:append(Fd, foobar),
+            Pos2 = Mod:append(Fd, <<131,100,0,6,102,111,111,98,97,114>>),
             work(Mod, Parent, Reps-1, Fd, Pos2, Ratios)
     end.
 

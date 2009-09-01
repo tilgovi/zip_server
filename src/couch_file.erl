@@ -22,7 +22,7 @@
     tail_append_begin=0 % 09 UPGRADE CODE
     }).
 
--export([overwrite/1, append/2]).
+-export([overwrite/1, append/2, pread/2]).
 -export([open/1, open/2, close/1, bytes/1, sync/1, append_binary/2,old_pread/3]).
 -export([append_term/2, pread_term/2, pread_iolist/2, write_header/2]).
 -export([pread_binary/2, read_header/1, truncate/2, upgrade_old_header/2]).
@@ -110,6 +110,9 @@ append_binary_md5(Fd, Bin) ->
 %%  or {error, Reason}.
 %%----------------------------------------------------------------------
 
+pread(Fd, Pos) ->
+    {ok, Bin} = pread_binary(Fd, Pos),
+    Bin.
 
 pread_term(Fd, Pos) ->
     {ok, Bin} = pread_binary(Fd, Pos),
