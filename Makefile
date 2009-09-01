@@ -9,4 +9,5 @@ all: $(build)
 	./test.es
 
 ebin/%.beam: src/%.erl
+	@if test ! -d ebin/ ; then mkdir ebin ; fi
 	erlc -o ebin/ $<
