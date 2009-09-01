@@ -34,6 +34,7 @@ run_tests([], _Ratios) ->
     ok;
 run_tests([{M, P, R} | Rest], Ratios) ->
     io:format("~-10s ~10b ~10b => ", [M, P, R]),
-    Time = file_test:run(M, P, R, Ratios),
+    Cfg = file_test:setup([{module, M}, {reps, R}, {ratios, Ratios}]),
+    Time = file_test:run(P, Cfg),
     io:format("~.3f~n", [Time]),
     run_tests(Rest, Ratios).

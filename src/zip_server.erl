@@ -2,8 +2,14 @@
 
 -export([enter_loop/2]).
 -export([call/2, call/3]).
-
 -export([behaviour_info/1]).
+
+-record(zipst, {
+    zipok=[],
+    queue=nil,
+    module=nil,
+    modst=nil
+}).
 
 behaviour_info(callbacks) ->
     [
@@ -24,14 +30,18 @@ call(Pid, Type, Mesg) ->
     end.
 
 enter_loop(Mod, State) ->
-    loop(queue:new(), Mod:zipok(), Mod, State).
+    loop(#zipst{
+        zipok=Mod:zipok(),
+        queue=queue:new(),
+        module=Mod,
+        modst=State
+    }).
 
-loop(Queue, ZipOk, Mod, State) ->
+loop(#zipst{queue=Q1}=State) ->
     receive
         Input ->
-            Queue2 = drain_mbox(queue:in(Input, Queue)),
-            {Queue3, NewState} = drain_queue(Queue2, ZipOk, Mod, State),
-            loop(Queue3, ZipOk, Mod, NewState)
+            Q2 = drain_mbox(queue:in(Input, Q1)),
+            loop(drain_queue(State#zipst{queue=Q2}))
     end.
 
 drain_mbox(Queue) ->
@@ -47,43 +57,43 @@ drain_mbox(Queue) ->
         0 -> Queue
     end.
 
-drain_queue(Queue, ZipOk, Mod, State) ->
-    case queue:out(Queue) of
-        {{value, {From, Type, Mesg}}, Queue2} ->
-            {Queue3, NewState} = case lists:member(Type, ZipOk) of
+drain_queue(#zipst{zipok=ZOk, queue=Q1}=State) ->
+    case queue:out(Q1) of
+        {{value, {From, Type, Mesg}}, Q2} ->
+            NewZipSt = case lists:member(Type, ZOk) of
                 true ->
-                    do_zip(Queue2, [From], Type, Mod, [Mesg], State);
+                    do_zip(State#zipst{queue=Q2}, Type, [From], [Mesg]);
                 _ ->
-                    do_call(Queue2, From, Mod, Mesg, State)
+                    do_call(State#zipst{queue=Q2}, Type, From, Mesg)
             end,
-            drain_queue(Queue3, ZipOk, Mod, NewState);
-        {empty, Queue2} ->
-            {Queue2, State}
+            drain_queue(NewZipSt);
+        {empty, Q2} ->
+            State#zipst{queue=Q2}
     end.
 
-do_zip(Queue, Recips, Type, Mod, Messages, State) ->
-    case queue:peek(Queue) of
+do_zip(#zipst{queue=Q1}=State, Type, Recips, Messages) ->
+    case queue:peek(Q1) of
         {value, {From, Type, Mesg}} ->
-            Q2 = queue:drop(Queue),
-            do_zip(Q2, [From|Recips], Type, Mod, [Mesg|Messages], State);
+            Q2 = queue:drop(Q1),
+            do_zip(State#zipst{queue=Q2}, Type, [From|Recips], [Mesg|Messages]);
         _ ->
-            handle_zip(Queue, Recips, Type, Mod, Messages, State)
+            handle_zip(State, Type, Recips, Messages)
     end.
 
-handle_zip(Queue, Recips, Type, Mod, Messages, State) ->
-    case catch Mod:handle_zip(Type, Messages, State) of
-        {reply, Reply, NewState} ->
+handle_zip(#zipst{module=Mod}=State, Type, Recips, Messages) ->
+    case catch Mod:handle_zip(Type, Messages, State#zipst.modst) of
+        {reply, Reply, NewModSt} ->
             reply(Recips, Reply),
-            {Queue, NewState};
+            State#zipst{modst=NewModSt};
         Else ->
             exit(Else)
     end.
 
-do_call(Queue, From, Mod, Mesg, State) ->
-    case catch Mod:handle_call(Mesg, From, State) of
-        {reply, Reply, NewState} ->
+do_call(#zipst{module=Mod}=State, Type, From, Mesg) ->
+    case catch Mod:handle_call(Type, Mesg, State) of
+        {reply, Reply, NewModSt} ->
             reply(From, Reply),
-            {Queue, NewState};
+            #zipst{modst=NewModSt};
         Else ->
             exit(Else)
     end.
@@ -91,7 +101,7 @@ do_call(Queue, From, Mod, Mesg, State) ->
 reply([], []) ->
     ok;
 reply([From|Recips], [Resp|Messages]) ->
-    From ! {self(), Resp},
+    reply(From, Resp),
     reply(Recips, Messages);
 reply(From, Resp) when is_pid(From) ->
     From ! {self(), Resp}.
